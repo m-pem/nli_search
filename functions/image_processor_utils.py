@@ -1,20 +1,17 @@
 import os
-import io
 import logging
 import cv2
 import numpy as np
 import uuid
 import imghdr
-import whatimage
 from PIL import Image
 import tempfile
-from pillow_heif import register_heif_opener
 
 logger = logging.getLogger("__name__")
 
 class ImageProcessor:
     """
-    A class that processes images from a specified folder.
+    A class that processes images from a range of sources
 
     Args:
         folder (str): The path to the folder containing the images.
@@ -134,36 +131,22 @@ class ImageProcessor:
         except Exception as e:
             logger.error("Failed to convert image to JPEG", exc_info=True)
             return None
-        
-    def load_images_from_one_drive_download_response(self, downloaded_images, image_metatdata_database):
-        logger.info(f'Processing {len(downloaded_images)} responses') 
-        register_heif_opener()
-        for i in range(0, len(downloaded_images), 10):
-            batch_files = downloaded_images[i:i+10]
-            images = []
-            metadata = []
-            for downloaded_image in batch_files:
-                image_data = downloaded_image['download_image_response']
-                image_id = downloaded_image['id']
-                image_metadata = [image for image in image_metatdata_database if image['id'] == image_id][0]
-                fmt = whatimage.identify_image(image_data)
-                image_metadata['file_type'] = fmt                
-                if image_data is not None and image_metadata is not None:
-                        img = Image.open((io.BytesIO(image_data)))
-                        img_array = np.array(img)
-                        images.append(img_array)
-                        metadata.append(image_metadata)
-                else:
-                    print(f'Skipped file: {image_id}') 
-            yield images, metadata
 
-    def write_temp_image_file(self, image_array):
-        # Write a NumPy array as a temporary image file
+    def write_temp_image_file(self, image_array, quality):
+    # Write a NumPy array as a temporary image file
         try:
             img = Image.fromarray(image_array.astype('uint8'))
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpeg")
-            img.save(temp_file, format='JPEG')
-            return temp_file
+            temp_file = None
+            img_format = None
+            if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+                img.save(temp_file, format='PNG', optimize=True, quality=quality)
+                img_format = 'PNG'
+            else:
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".jpeg")
+                img.save(temp_file, format='JPEG', optimize=True, quality=quality)
+                img_format = 'JPEG'
+            return temp_file, img_format
         except Exception as e:
             logger.error(f"Error occurred while writing temporary image file: {e}")
             raise e

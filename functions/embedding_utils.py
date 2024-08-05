@@ -1,24 +1,22 @@
 # This file will be called when the user uploads some photos. The task here will be to extract the image embeddings and then store them in the database.
 
-# https://medium.com/red-buffer/diving-into-clip-by-creating-semantic-image-search-engines-834c8149de56
-
-
 ### This file needs to be updated to use image embeddings rather than the images themselves.
 
 import logging
 import time
-
-from transformers import AutoProcessor, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
 import torch
+from transformers import AutoProcessor, CLIPVisionModelWithProjection, CLIPTextModelWithProjection
 
-logger = logging.getLogger("nli_search_server")
+logger = logging.getLogger("nli_search")
 
 CLIP_MODEL = "openai/clip-vit-base-patch32"
 CLIP_PREPROCESSOR = "openai/clip-vit-base-patch32"
 
-
-
 class EmbeddingUtil:
+    """
+    A class that generates embeddings for images and text using the openAI CLIP model
+    """
+
     def __init__(self):
         self.visionModel = CLIPVisionModelWithProjection.from_pretrained(CLIP_MODEL)
         self.textModel = CLIPTextModelWithProjection.from_pretrained(CLIP_MODEL)
@@ -54,13 +52,12 @@ class EmbeddingUtil:
         """
         textModel = self.textModel.to(self.device)
         
-        qyery_text_processed = self.processor(text=query_text, padding=True, return_tensors="pt")
+        query_text_processed = self.processor(text=query_text, padding=True, return_tensors="pt")
 
-        # inputs = tokenizer(query_text, padding=True, return_tensors="pt")
         # Obtain the text-image similarity scores
         with torch.no_grad():
             start_time = time.time()
-            outputs = textModel(**qyery_text_processed)
+            outputs = textModel(**query_text_processed)
             text_embeds = outputs.text_embeds
         end_time = time.time() - start_time
         logger.info(f"Query text embeddings created in {end_time:.3f} seconds.")
